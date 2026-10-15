@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Maze Game</title>
+<style>
+body{
+background:#0f0f1a;
+color:white;
+text-align:center;
+font-family:Arial;
+}
+
+h1{color:#c084fc;}
+
+.controls button, select{
+margin:5px;
+padding:8px 12px;
+border:none;
+border-radius:8px;
+background:#7c3aed;
+color:white;
+cursor:pointer;
+}
+
+.info{
+margin:10px;
+padding:10px;
+background:#1a1a2e;
+border-radius:12px;
+display:inline-block;
+}
+
+canvas{
+margin-top:20px;
+background:#0f0f1a;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Maze Game 🔥</h1>
+
+<div class="controls">
+<select onchange="changeLevel(this.value)">
+<option value="10">Easy</option>
+<option value="15">Medium</option>
+<option value="20">Hard</option>
+</select>
+
+<button onclick="newMaze()">New</button>
+<button onclick="restart()">Restart</button>
+<button onclick="togglePause()">Pause</button>
+<button onclick="autoSolve()">Solve</button>
+</div>
+
+<div class="info">
+⏱ <span id="time">0</span>s | 🏆 Moves: <span id="moves">0</span>
+</div>
+
+<br>
+
+<canvas id="mazeCanvas"></canvas>
+
+<p id="status"></p>
+
+<script>
+let size = 15;
+let cellSize = 30;
+
+let canvas = document.getElementById("mazeCanvas");
+let ctx = canvas.getContext("2d");
+
+let maze = [];
+let player = {x:0,y:0};
+let end;
+let trail=[];
+let backtrackTrail=[];
+
+let moves=0,time=0,paused=false;
+
+function resizeCanvas(){
+canvas.width=size*cellSize;
+canvas.height=size*cellSize;
+}
+
+setInterval(()=>{
+if(!paused){
+time++;
+document.getElementById("time").innerText=time;
+}
+},1000);
+
+// INIT
+function initMaze(){
+maze=[];
+for(let i=0;i<size;i++){
+let row=[];
+for(let j=0;j<size;j++){
+row.push({visited:false,walls:[true,true,true,true]});
+}
+maze.push(row);
+}
+}
+
+// GENERATE MAZE (DFS)
+function generateMaze(x=0,y=0){
+maze[x][y].visited=true;
+
+let dirs=[[0,1],[1,0],[0,-1],[-1,0]];
+dirs.sort(()=>Math.random()-0.5);
+
+for(let [dx,dy] of dirs){
+let nx=x+dx, ny=y+dy;
+if(nx>=0&&ny>=0&&nx<size&&ny<size&&!maze[nx][ny].visited){
+
+if(dx===1){maze[x][y].walls[2]=false;maze[nx][ny].walls[0]=false;}
+if(dx===-1){maze[x][y].walls[0]=false;maze[nx][ny].walls[2]=false;}
+if(dy===1){maze[x][y].walls[1]=false;maze[nx][ny].walls[3]=false;}
+if(dy===-1){maze[x][y].walls[3]=false;maze[nx][ny].walls[1]=false;}
+
+generateMaze(nx,ny);
+}
+}
+}
+
+// DRAW
+function drawMaze(){
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+ctx.strokeStyle="#8b5cf6";
+ctx.lineWidth=2;
+
+// walls
+for(let i=0;i<size;i++){
+for(let j=0;j<size;j++){
+let x=j*cellSize;
+let y=i*cellSize;
+let cell=maze[i][j];
+
+if(cell.walls[0]) drawLine(x,y,x+cellSize,y);
+if(cell.walls[1]) drawLine(x+cellSize,y,x+cellSize,y+cellSize);
+if(cell.walls[2]) drawLine(x,y+cellSize,x+cellSize,y+cellSize);
+if(cell.walls[3]) drawLine(x,y,x,y+cellSize);
+}
+}
+
+// user path
+trail.forEach(p=>{
+ctx.fillStyle="rgba(168,85,247,0.25)";
+ctx.fillRect(p.y*cellSize,p.x*cellSize,cellSize,cellSize);
+});
+
+// backtracking path (red highlight 🔥)
+backtrackTrail.forEach(p=>{
+ctx.fillStyle="rgba(255,0,0,0.25)";
+ctx.fillRect(p.y*cellSize,p.x*cellSize,cellSize,cellSize);
+});
+
+drawPlayer();
+drawEnd();
+}
+
+function drawLine(x1,y1,x2,y2){
+ctx.beginPath();
+ctx.moveTo(x1,y1);
+ctx.lineTo(x2,y2);
+ctx.stroke();
+}
+
+function drawPlayer(){
+ctx.fillStyle="white";
+ctx.beginPath();
+ctx.arc(player.y*cellSize+cellSize/2,player.x*cellSize+cellSize/2,cellSize/4,0,Math.PI*2);
+ctx.fill();
+}
+
+function drawEnd(){
+ctx.fillStyle="red";
+ctx.beginPath();
+ctx.arc(end.y*cellSize+cellSize/2,end.x*cellSize+cellSize/2,cellSize/4,0,Math.PI*2);
+ctx.fill();
+}
+
+// MOVE
+function move(dx,dy){
+if(paused) return;
+
+let nx=player.x+dx, ny=player.y+dy;
+if(nx<0||ny<0||nx>=size||ny>=size) return;
+
+let cell=maze[player.x][player.y];
+
+if(dx===-1&&cell.walls[0]) return;
+if(dx===1&&cell.walls[2]) return;
+if(dy===1&&cell.walls[1]) return;
+if(dy===-1&&cell.walls[3]) return;
+
+player.x=nx;
+player.y=ny;
+
+trail.push({x:nx,y:ny});
+
+moves++;
+document.getElementById("moves").innerText=moves;
+
+drawMaze();
+
+if(player.x===end.x && player.y===end.y){
+document.getElementById("status").innerText="🎉 You Win!";
+}
+}
+
+// KEYS
+document.addEventListener("keydown",e=>{
+if(e.key==="ArrowUp"||e.key==="w") move(-1,0);
+if(e.key==="ArrowDown"||e.key==="s") move(1,0);
+if(e.key==="ArrowLeft"||e.key==="a") move(0,-1);
+if(e.key==="ArrowRight"||e.key==="d") move(0,1);
+});
+
+// SOLVE WITH BACKTRACKING VISUAL 🔥
+function autoSolve(){
+let visited=Array(size).fill().map(()=>Array(size).fill(false));
+let path=[];
+
+function dfs(x,y){
+visited[x][y]=true;
+path.push({x,y});
+drawMaze();
+
+if(x===end.x&&y===end.y) return true;
+
+let dirs=[[0,1],[1,0],[0,-1],[-1,0]];
+
+for(let [dx,dy] of dirs){
+let nx=x+dx, ny=y+dy;
+
+if(nx>=0&&ny>=0&&nx<size&&ny<size&&!visited[nx][ny]){
+let cell=maze[x][y];
+
+if(dx===-1&&cell.walls[0]) continue;
+if(dx===1&&cell.walls[2]) continue;
+if(dy===1&&cell.walls[1]) continue;
+if(dy===-1&&cell.walls[3]) continue;
+
+if(dfs(nx,ny)) return true;
+}
+}
+
+// BACKTRACK 🔥
+backtrackTrail.push({x,y});
+path.pop();
+drawMaze();
+
+return false;
+}
+
+dfs(0,0);
+}
+
+// BUTTONS
+function restart(){
+player={x:0,y:0};
+trail=[];
+backtrackTrail=[];
+moves=0;
+time=0;
+drawMaze();
+}
+
+function togglePause(){
+paused=!paused;
+}
+
+function changeLevel(val){
+size=parseInt(val);
+newMaze();
+}
+
+// NEW MAZE
+function newMaze(){
+resizeCanvas();
+initMaze();
+generateMaze();
+
+player={x:0,y:0};
+end={x:size-1,y:size-1};
+
+trail=[];
+backtrackTrail=[];
+moves=0;
+time=0;
+
+drawMaze();
+}
+
+// INIT
+newMaze();
+</script>
+
+</body>
+</html>
